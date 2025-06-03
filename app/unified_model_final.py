@@ -1,31 +1,77 @@
 #!/usr/bin/env python
 # ~* coding: utf-8 *~
-from collections import defaultdict
+import logging
+from dataclasses import dataclass
+from typing import Dict, List
 
 import torch
 import torch.nn as nn
+from safetensors.torch import load_file
+from torch import Tensor
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-from constants import MODEL_NAME, ID2LABEL, DIMENSIONS
-from utils import format_input
+from app.utils.constants import MODEL_NAME
+from app.utils.model_input_formatting import format_input
 
+logger = logging.getLogger(__name__)
 
-# =========== MODEL
+@dataclass
+class PredictionResult:
+    dimension: str
+    label: str
+    logits: Dict[str, float]
+
 
 
 class MultiTaskBert(nn.Module):
-    def __init__(self, model_name=MODEL_NAME, n_intent_dim=3, n_elicit_dim=2, n_helpful_dim=3):
+    def __init__(self):
         super(MultiTaskBert, self).__init__()
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+        self.model_name = MODEL_NAME
+        self.label2id_config = {
+            "Communicative_Intent": {"D": 0, "I": 1, "O": 2},
+            "Output_Elicitation": {"No": 0, "Yes": 1},
+            "Helpfulness": {"Helpful": 0, "Neutral": 1, "Not helpful": 2},
+        }
+
+        self.id2label_config= {dim: {v: k for k, v in self.label2id_config[dim].items()} for dim in self.label2id_config}
+        self.dimensions_config = ["Communicative_Intent", "Output_Elicitation", "Helpfulness"]
+
+        self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         hidden_size = self.model.config.hidden_size
 
-        self.intent_classifier = nn.Linear(hidden_size, n_intent_dim)  # dim1
-        self.elicitation_classifier = nn.Linear(hidden_size, n_elicit_dim)  # dim2
-        self.helpfulness_classifier = nn.Linear(hidden_size, n_helpful_dim)  # dim3
+        self.intent_classifier = nn.Linear(hidden_size, 3)
+        self.elicitation_classifier = nn.Linear(hidden_size, 2)
+        self.helpfulness_classifier = nn.Linear(hidden_size, 3)
 
-    def forward(self, input_ids, attention_mask, context_input_ids, context_attention_mask, labels=None):
-        single_turn_outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, output_hidden_states=True)
+    @classmethod
+    def load_model_from_checkpoint(cls, checkpoint_path):
+
+        instance = cls()
+        logger.info(f"Loading model on device: {instance.device}")
+
+        raw_state = load_file(checkpoint_path)
+        infer_state = {k: v for k, v in raw_state.items() if not k.startswith("loss_fn_")}
+
+        instance.load_state_dict(infer_state)
+        instance = instance.to(instance.device)
+
+        instance.eval()
+        return instance
+
+    def forward(
+        self,
+        input_ids: Tensor,
+        attention_mask: Tensor,
+        context_input_ids: Tensor,
+        context_attention_mask: Tensor,
+    ) -> Dict[str, Tensor]:
+
+        single_turn_outputs = self.model(
+            input_ids=input_ids, attention_mask=attention_mask, output_hidden_states=True
+        )
         single_turn_cls_embedding = single_turn_outputs.hidden_states[-1][:, 0, :]
 
         multi_turn_outputs = self.model(
@@ -33,10 +79,9 @@ class MultiTaskBert(nn.Module):
         )
         multi_turn_cls_embedding = multi_turn_outputs.hidden_states[-1][:, 0, :]
 
-        # ==== LOGITS ====
-        intent_logits = self.intent_classifier(single_turn_cls_embedding)  # dim1
-        elicitation_logits = self.elicitation_classifier(single_turn_cls_embedding)  # dim2
-        helpfulness_logits = self.helpfulness_classifier(multi_turn_cls_embedding)  # dim3
+        intent_logits = self.intent_classifier(single_turn_cls_embedding)
+        elicitation_logits = self.elicitation_classifier(single_turn_cls_embedding)
+        helpfulness_logits = self.helpfulness_classifier(multi_turn_cls_embedding)
 
         return {
             "intent_logits": intent_logits,
@@ -44,9 +89,7 @@ class MultiTaskBert(nn.Module):
             "helpfulness_logits": helpfulness_logits,
         }
 
-    def _tokenizer_func_unified(self, convo, turn):
-        print("turn", turn)
-        print("convo", convo)
+    def _tokenizer_func_unified(self, convo: List[Dict[str, str]], turn: str) -> Dict[str, Tensor]:
         tokenized_target = self.tokenizer(
             turn,
             truncation=True,
@@ -63,32 +106,31 @@ class MultiTaskBert(nn.Module):
             max_length=self.tokenizer.model_max_length,
             return_tensors="pt",
         )
-
         return {
-            "input_ids": tokenized_target["input_ids"],
-            "attention_mask": tokenized_target["attention_mask"],
-            "context_input_ids": tokenized_context["input_ids"],
-            "context_attention_mask": tokenized_context["attention_mask"],
+            "input_ids": tokenized_target["input_ids"].to(self.device),
+            "attention_mask": tokenized_target["attention_mask"].to(self.device),
+            "context_input_ids": tokenized_context["input_ids"].to(self.device),
+            "context_attention_mask": tokenized_context["attention_mask"].to(self.device),
         }
 
-
-    def predict(self, convo, turn):
+    def predict(self, convo: List[Dict[str, str]], turn: str) -> Dict[str, Tensor]:
         inputs = self._tokenizer_func_unified(convo, turn)
         with torch.no_grad():
             outputs = self.forward(**inputs)
         return outputs
 
+    def decode_outputs(self, predictions: Dict[str, torch.Tensor]) -> List[PredictionResult]:
+        output_list: List[PredictionResult] = []
 
-    @staticmethod
-    def decode_outputs(predictions, return_dict=False):
-        string_output = ""
-        results = defaultdict()
+        for dim_name, logits in zip(self.dimensions_config, predictions.values()):
+            probabilities = torch.softmax(logits, dim=-1).flatten().tolist()
+            probabilities = {label:prob for label, prob in zip(self.label2id_config[dim_name].keys(), probabilities)}
+            sorted_probabilities = dict(sorted(probabilities.items(), key=lambda item: item[1], reverse=True))
 
-        for dim, logits in zip(DIMENSIONS, predictions.values()):
             pred_label_id = torch.argmax(logits, dim=-1).item()
-            label = ID2LABEL[dim][pred_label_id]
+            label = self.id2label_config[dim_name][pred_label_id]
 
-            string_output += f"{dim}: {label}\n"
-            results[dim] = label
+            output_list.append(PredictionResult(dimension=dim_name, label=label, logits=sorted_probabilities))
 
-        return results if return_dict else string_output
+        return output_list
+
