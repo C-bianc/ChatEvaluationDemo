@@ -5,7 +5,8 @@
 """
 if after 4 turns, the bot has not been evaluated with I or D, trigger intent
 """
-import re
+from logging import getLogger
+logger = getLogger(__name__)
 
 ## OUTPUT ELICITATION
 """
@@ -60,7 +61,7 @@ class Seed:
         :return:
         """
         user_replies = [msg["content"] for msg in history if msg["role"] == "user"]
-        user_replies_lengths = [len(re.sub("'", " ", reply).split()) for reply in user_replies]
+        user_replies_lengths = [len(reply.replace("'", " ").split()) for reply in user_replies]
 
         # compute average response length of user turns
         ARL = sum(user_replies_lengths) / len(user_replies_lengths)
@@ -74,6 +75,7 @@ class Seed:
         ER = elicitation_labels.count("Yes") / len(elicitation_labels)
 
         sub_score = 0.5 * (ER * self.weight_eliciting + LC)
+        logger.info(f"subscore output elicitation: {sub_score} (l_min = {self.l_min}, l_max = {self.l_max}, ARL = {ARL}, ER = {ER}, LC = {LC})")
 
         return round(sub_score, 2)
 
