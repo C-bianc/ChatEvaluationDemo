@@ -50,9 +50,3 @@ span.textspan.svelte-ju12zg.hl[style*="background-color: rgb(220, 252, 231)"] .t
     font-weight: bold !important;
     font-size: 1.2em !important;
 }
-
-/* Even more specific selector */
-#evaluation-box span[style*="background-color: rgb(220, 252, 231)"] .text {
-    font-weight: bold !important;
-    font-size: 1.2em !important;
-}

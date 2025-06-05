@@ -14,8 +14,9 @@ def create_evaluation_module():
     )
 
     seed_scores = gr.Highlightedtext(
-        label="Seed Score (normalized)", interactive=False, render=False, min_width=400, elem_id="seed-scores",
-        color_map={"satisfying": "green", "enough": "yellow", "not enough": "red", "subscore": "lightgrey"}
+        label="Seed Score (normalized)", interactive=False, render=False, min_width=400, elem_id="evaluation-box",
+        color_map={"satisfying": "green", "enough": "yellow", "not enough": "red", "subscore": "lightgrey"},
+
     )
 
     return evaluation_box, seed_scores
