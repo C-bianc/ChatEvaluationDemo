@@ -124,7 +124,7 @@ class MultiTaskBert(nn.Module):
 
         for dim_name, logits in zip(self.dimensions_config, predictions.values()):
             probabilities = torch.softmax(logits, dim=-1).flatten().tolist()
-            probabilities = {label:prob for label, prob in zip(self.label2id_config[dim_name].keys(), probabilities)}
+            probabilities = {label:round(prob, 2) for label, prob in zip(self.label2id_config[dim_name].keys(), probabilities)}
             sorted_probabilities = dict(sorted(probabilities.items(), key=lambda item: item[1], reverse=True))
 
             pred_label_id = torch.argmax(logits, dim=-1).item()
