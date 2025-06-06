@@ -5,27 +5,25 @@ from app.utils.conversation import save_context_config, save_requirements_config
 
 def create_prompt_parameters_module(default_context, default_requirements, prompt_preview_component):
 
-    notification_box = gr.Textbox(label="Status", visible=True, interactive=False)
-
     # Context input
-    context_input = gr.Textbox(label="Conversation Context", value=default_context, lines=3)
+    context_input = gr.Textbox(label="Conversation Context", value=default_context, lines=20)
 
     # Requirements input
-    requirements_input = gr.Textbox(label="Constraints", value=default_requirements, lines=5)
+    requirements_input = gr.Textbox(label="Constraints", value=default_requirements, lines=4)
 
     # Add change event handlers AFTER all components are defined
     context_input.change(
         fn=save_context_config,
         inputs=[context_input],
-        outputs=[notification_box, prompt_preview_component],  # Include prompt_preview here
+        outputs=[prompt_preview_component],  # Include prompt_preview here
     )
 
     requirements_input.change(
         fn=save_requirements_config,
         inputs=[requirements_input],
-        outputs=[notification_box, prompt_preview_component],  # Include prompt_preview here
+        outputs=[prompt_preview_component],  # Include prompt_preview here
     )
-    return context_input, requirements_input, notification_box
+    return context_input, requirements_input
 
 def create_prompt_preview_module(default_context, default_requirements):
     default_prompt = create_prompt_template(default_context, default_requirements, None)
@@ -33,9 +31,11 @@ def create_prompt_preview_module(default_context, default_requirements):
     # Prompt preview
     prompt_preview = gr.Textbox(
         label="Current Prompt",
-        lines=8,
+        lines=25,
         interactive=False,
         render=False,
         value=default_prompt
     )
     return prompt_preview
+
+

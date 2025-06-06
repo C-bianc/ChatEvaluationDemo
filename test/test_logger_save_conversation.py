@@ -7,8 +7,8 @@ from unittest import mock
 
 # Import necessary modules
 from app.evaluator import MessageEvaluation
-from app.unified_model_final import PredictionResult
 from app.utils.logger import save_conversation_with_evaluation
+from unified_model_final import PredictionResult
 
 
 class TestSaveConversation(unittest.TestCase):
@@ -29,11 +29,15 @@ class TestSaveConversation(unittest.TestCase):
                 role="bot",
                 content="Hello, how can I help you?",
                 evaluation=[prediction1, prediction2, prediction3],
+                seed_scores={"seed_total": 0.8, "seed_intent": 0.8, "seed_output": 0.2, "seed_helpful": 0.1},
+                reason_for_bad=None
             ),
             MessageEvaluation(
                 turn_number=2,
                 role="user",
-                content="I need help with Python.", evaluation=[prediction1, prediction2, prediction3]
+                content="I need help with Python.", evaluation=[prediction1, prediction2, prediction3],
+            seed_scores={"seed_total": 0.8, "seed_intent": 0.8, "seed_output": 0.2, "seed_helpful": 0.1},
+                reason_for_bad=None
             ),
         ]
 
@@ -56,7 +60,6 @@ class TestSaveConversation(unittest.TestCase):
         # Check that the file was created
         self.assertTrue(os.path.exists(test_filename))
 
-
     def test_save_conversation_writes_correct_data(self):
         """Test that the function writes the correct data to the CSV file."""
         # Call function with a specific filename in the test directory
@@ -69,7 +72,8 @@ class TestSaveConversation(unittest.TestCase):
             rows = list(reader)
 
         # Check header row
-        self.assertEqual([
+        self.assertEqual(
+            [
                 "conv_id",
                 "turn",
                 "author",
@@ -80,7 +84,12 @@ class TestSaveConversation(unittest.TestCase):
                 "prob_elicit",
                 "helpfulness",
                 "prob_helpfulness",
-            ], rows[0]
+                "seed_total",
+                "seed_intent",
+                "seed_output",
+                "seed_helpful",
+            ],
+            rows[0],
         )
 
         # Check data rows
@@ -94,16 +103,15 @@ class TestSaveConversation(unittest.TestCase):
         self.assertEqual(rows[1][4], "I")  # intent label
         self.assertEqual(rows[1][5], "0.8")  # intent label
 
-
     def test_save_conversation_with_default_filename(self):
         """Test that the function creates a file with default filename when none is provided."""
         conv_id = datetime.now().strftime("%Y%m%d%H%M%S")
         expected_file_pattern = f"conversation_{conv_id}.csv"
-        
+
         # mock the open function to avoid actual file creation
         with mock.patch('builtins.open', mock.mock_open()) as mock_file:
             save_conversation_with_evaluation(self.test_conversation)
-        
+
         # Check that open was called with the correct path
         # Extract the file path from the call arguments
         called_path = mock_file.call_args[0][0]

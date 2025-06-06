@@ -21,6 +21,7 @@ def get_logger(name=None):
 
 
 
+# TODO : output seed scores (also maybe need to store them in the eval message
 
 def save_conversation_with_evaluation(conversation, conv_id=None):
     """Input: a list of MessageEvaluation objects.
@@ -46,6 +47,11 @@ def save_conversation_with_evaluation(conversation, conv_id=None):
         "prob_elicit",
         "helpfulness",
         "prob_helpfulness",
+        'seed_total',
+        'seed_intent',
+        'seed_output',
+        'seed_helpful',
+
     ]
 
     with open(output_file, "w", newline="") as output_file:
@@ -60,10 +66,14 @@ def save_conversation_with_evaluation(conversation, conv_id=None):
             # the labels are in the order of the headers (['intent', 'elicitation', 'helpfulness'])
             if message_evaluation.role == "bot":
                 evaluations = message_evaluation.evaluation
+                seed_results = message_evaluation.seed_scores
 
                 for evaluation in evaluations:
                     probability = evaluation.logits[evaluation.label]
                     row.extend([evaluation.label, probability])
+
+                for seed_result in seed_results:
+                    row.extend([seed_result])
             csv_writer.writerow(row)
 
     action_log = "updated to existing file" if file_exists else "saved to"

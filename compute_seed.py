@@ -5,6 +5,7 @@
 """
 if after 4 turns, the bot has not been evaluated with I or D, trigger intent
 """
+import re
 from logging import getLogger
 logger = getLogger(__name__)
 
@@ -35,9 +36,9 @@ class Seed:
         self.weight_eliciting = weight_eliciting
 
         self.total_seed = None
-        self.intent_sub_score = None
-        self.output_elicitation_sub_score = None
-        self.helpfulness_sub_score = None
+        self.intent_subscore = None
+        self.output_elicitation_subscore = None
+        self.helpfulness_subscore = None
 
     @staticmethod
     def compute_subscore_intent(intent_labels):
@@ -47,7 +48,15 @@ class Seed:
         n_goal_intents = intent_labels.count("D") + intent_labels.count("I")
         return round(n_goal_intents / len(intent_labels), 2)
 
-    def compute_subscore_output_elicitation(self, history, elicitation_labels):
+    @staticmethod
+    def _tokenize_turn(sentence):
+        processed_sentence = sentence.replace("'", " ")
+        tokens = re.findall(r"\w+", processed_sentence)
+
+        return tokens
+
+    def compute_subscore_output_elicitation(self, user_replies, elicitation_labels):
+
         """
         elicit score is the weighted ratio between eliciting turns and total turns added to learner contribution
         divided by two
@@ -60,8 +69,7 @@ class Seed:
         }
         :return:
         """
-        user_replies = [msg["content"] for msg in history if msg["role"] == "user"]
-        user_replies_lengths = [len(reply.replace("'", " ").split()) for reply in user_replies]
+        user_replies_lengths = [len(self._tokenize_turn(reply)) for reply in user_replies]
 
         # compute average response length of user turns
         ARL = sum(user_replies_lengths) / len(user_replies_lengths)
@@ -74,7 +82,7 @@ class Seed:
         # compute eliciting ratio
         ER = elicitation_labels.count("Yes") / len(elicitation_labels)
 
-        sub_score = 0.5 * (ER * self.weight_eliciting + LC)
+        sub_score = (ER * self.weight_eliciting + LC) * 0.5 if LC > 0 else ER * self.weight_eliciting
         logger.info(f"subscore output elicitation: {sub_score} (l_min = {self.l_min}, l_max = {self.l_max}, ARL = {ARL}, ER = {ER}, LC = {LC})")
 
         return round(sub_score, 2)
@@ -82,10 +90,20 @@ class Seed:
     @staticmethod
     def compute_subscore_helpfulness(helpfulness_labels):
         n_helpful = helpfulness_labels.count("Helpful")
-        return round(n_helpful / len(helpfulness_labels), 2)
+        n_neutral = helpfulness_labels.count("Neutral")
+        if n_neutral > 0:
+            n_neutral /= 2 # adapted because if only neutral, then seed is 0 (if trigger helpfulness when user in difficulty, then better)
 
-    def compute_total_seed(self, intent_subcore, output_subscore, helpfulness_subscore):
-        total_seed =   (self.weight_intent * intent_subcore) \
-                     + (self.weight_output_elicitation * output_subscore) \
-                     + (self.weight_helpfulness * helpfulness_subscore)
+        aggregated_labels = n_helpful + n_neutral
+        return round(aggregated_labels / len(helpfulness_labels), 2)
+
+    def compute_total_seed(self, intent_labels, output_labels, helpfulness_labels, user_replies):
+        self.intent_subscore = self.compute_subscore_intent(intent_labels)
+        self.output_elicitation_subscore = self.compute_subscore_output_elicitation(user_replies, output_labels)
+        self.helpfulness_subscore = self.compute_subscore_helpfulness(helpfulness_labels)
+
+        total_seed =   (self.weight_intent * self.intent_subscore) \
+                     + (self.weight_output_elicitation * self.output_elicitation_subscore) \
+                     + (self.weight_helpfulness * self.helpfulness_subscore)
         return round(total_seed / 3, 2)
+
