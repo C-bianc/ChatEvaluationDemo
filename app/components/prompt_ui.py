@@ -38,4 +38,11 @@ def create_prompt_preview_module(default_context, default_requirements):
     )
     return prompt_preview
 
+def create_prompt_for_refinement_preview():
+    return gr.Textbox(
+        label="Prompt for refinement",
+        lines=16,
+        interactive=False,
+        value=""
+    )
 

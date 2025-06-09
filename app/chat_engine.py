@@ -8,6 +8,7 @@ import gradio as gr
 from app.components.about_info_ui import add_info_about_app
 from app.components.chat_ui import create_chat_module
 from app.components.evaluation_ui import create_evaluation_module
+from app.components.prompt_ui import create_prompt_for_refinement_preview
 from app.components.prompt_ui import create_prompt_parameters_module, create_prompt_preview_module
 from app.evaluator import ConversationEvaluator
 from app.utils.constants import MODEL_PATH, LLMS, ACTION_INTENT, ACTION_OUTPUT, ACTION_HELPFUL
@@ -99,7 +100,7 @@ def get_actions_for_refinement(
     return actions_for_refinement
 
 
-def get_new_evaluation(history, reason, new_bot_response):
+def get_new_evaluation(history, reason, new_bot_response, user_replies):
     bad_response = evaluator.evaluated_conversation[-1]
     bad_response.reason_for_bad = ", ".join(reason)
     evaluator.add_bad_evaluation(bad_response)
@@ -205,8 +206,8 @@ def build_chat_ui():
                             context_input, requirements_input = create_prompt_parameters_module(
                                 default_context, default_requirements, prompt_preview
                             )
-                            prompt_preview.render()
                             prompt_preview.change(fn=lambda: trigger_notification("Prompt template updated."))
+                            prompt_preview.render()
 
                 ### MIDDLE COLUMN ### Chat Interface
                 with gr.Column(scale=2, min_width=300):
@@ -240,8 +241,11 @@ def build_chat_ui():
         with gr.Tab("Evaluation History"):
             gr.Markdown("### Evaluation History")
             with gr.Row():
-                eval_history_box = gr.Dataframe(wrap=True, column_widths=[25, 50, 250, 200, 200])
-                chatbot.change(fn=evaluator.get_conversation_evaluation_with_bad_responses, outputs=eval_history_box, trigger_mode="always_last")
+                eval_history_box = gr.Dataframe(
+                    wrap=True,    # ID # author # message # labels # seed # reason_for_bad
+                    column_widths=[20, 50, 250, 250, 150, 200],
+                    visible=True, value=pd.DataFrame(columns=["ID", "Author", "Message", "Labels", "Seed", "Reason for bad"]))
+                chatbot.change(fn=lambda : evaluator.get_evaluation_dataframe_with_bad_responses(), outputs=eval_history_box, trigger_mode="always_last")
 
         with gr.Tab("Prompt Template"):
             with gr.Row():
@@ -250,15 +254,17 @@ def build_chat_ui():
                     context_input, requirements_input = create_prompt_parameters_module(
                         default_context, default_requirements, prompt_preview
                     )
-                    prompt_preview.change(fn=lambda: trigger_notification("Prompt template updated."))
                 with gr.Column():
                     gr.Markdown("### Prompt Preview")
 
-                    prompt_preview = create_prompt_preview_module(default_context, default_requirements)
-                    prompt_preview.label = "This prompt template is called at each turn for generating a response."
-                    prompt_preview.render()
+                    prompt_preview_tab = create_prompt_preview_module(default_context, default_requirements)
+                    prompt_preview_tab.label = "This prompt template is called at each turn for generating a response."
+                    prompt_preview_tab.change(fn=lambda: trigger_notification("Prompt template updated."))
+                    prompt_preview_tab.render()
 
             gr.Markdown("### Bot response refinement config")
+            refinement_prompt = create_prompt_for_refinement_preview()
+            refinement_prompt.value = get_prompt_for_refinement([ACTION_INTENT, ACTION_OUTPUT, ACTION_HELPFUL], "{bot response}", "{history}")
 
         with gr.Tab("About"):
             gr.Markdown(add_info_about_app())
@@ -267,4 +273,4 @@ def build_chat_ui():
             gr.HTML("""<embed src="app/assets/bert_unified.drawio.pdf" width="100%" height="600px" type="application/pdf">""")
             gr.Markdown("Bianca Ciobanica, 2025")
 
-        return demo
+    return demo

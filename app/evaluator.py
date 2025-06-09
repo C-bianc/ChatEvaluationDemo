@@ -108,17 +108,26 @@ class ConversationEvaluator:
             messages.append(message_evaluation.content)
 
             # format labels : label (prob)
-            eval_text = ""
-            for dim_eval in message_evaluation.evaluation:
-                eval_text += f"{dim_eval.label} ({dim_eval.logits[dim_eval.label]:.2f})\n"
-            evaluations.append(eval_text)
+            if message_evaluation.role == "bot":
+                eval_text = ""
+                for dim_eval in message_evaluation.evaluation:
+                    eval_text += f"{dim_eval.label} ({dim_eval.logits[dim_eval.label]:.2f})\n"
+                evaluations.append(eval_text)
 
-            reasons.append(message_evaluation.reason_for_bad if message_evaluation.reason_for_bad else "")
+                if message_evaluation.reason_for_bad:
+                    reasons.append(message_evaluation.reason_for_bad)
+                else:
+                    reasons.append("Good response")
 
-            seed_text = ""
-            for seed_result in message_evaluation.seed_results:
-                seed_text += f"{seed_result}: {message_evaluation.seed_results[seed_result]:.2f}\n"
-            seed_results.append(seed_text)
+                seed_text = ""
+                for seed_result in message_evaluation.seed_scores:
+                    seed_text += f"{seed_result:<20}: {message_evaluation.seed_scores[seed_result]:.2f}\n"
+                seed_results.append(seed_text)
+            else:
+                evaluations.append("")
+                seed_results.append("")
+                reasons.append("")
+
 
         df = pd.DataFrame(
             {
