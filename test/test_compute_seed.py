@@ -43,8 +43,7 @@ class TestSeed(unittest.TestCase):
         self.assertEqual(self.seed.compute_subscore_intent(mixed_intents), 0.5)
 
         # Test with empty list (edge case)
-        with self.assertRaises(ZeroDivisionError):
-            self.seed.compute_subscore_intent([])
+        self.assertEqual(self.seed.compute_subscore_intent([]), 0)
 
     def test_compute_subscore_output_elicitation(self):
         """Test the output elicitation subscore calculation"""
@@ -76,8 +75,7 @@ class TestSeed(unittest.TestCase):
 
 
         # Test with empty lists (edge case)
-        with self.assertRaises(ZeroDivisionError):
-            self.seed.compute_subscore_output_elicitation([], [])
+        self.assertEqual(self.seed.compute_subscore_output_elicitation([], []), 0)
 
     def test_compute_subscore_helpfulness(self):
         """Test the helpfulness subscore calculation"""
@@ -94,8 +92,7 @@ class TestSeed(unittest.TestCase):
         self.assertEqual(self.seed.compute_subscore_helpfulness(mixed_helpful), 0.62)
 
         # Test with empty list (edge case)
-        with self.assertRaises(ZeroDivisionError):
-            self.seed.compute_subscore_helpfulness([])
+        self.assertEqual(self.seed.compute_subscore_helpfulness([]), 0)
 
     def test_compute_total_seed(self):
         """Test the total SEED score calculation"""
@@ -107,8 +104,9 @@ class TestSeed(unittest.TestCase):
         output_labels_perfect = ["Yes", "Yes", "Yes"]  # All elicitations are Yes
         helpfulness_labels_perfect = ["Helpful", "Helpful", "Helpful"]  # All helpful
         
-        total_perfect = self.seed.compute_total_seed(intent_labels_perfect, output_labels_perfect, 
-                                                    helpfulness_labels_perfect, user_replies)
+        total_perfect = self.seed.compute_total_seed(intent_labels_perfect, output_labels_perfect,
+                                                    helpfulness_labels_perfect, user_replies)["seed"]
+
         # With perfect labels, this should be close to 1
         self.assertAlmostEqual(total_perfect, 1.0, places=1)
         
@@ -118,7 +116,7 @@ class TestSeed(unittest.TestCase):
         helpfulness_labels_zero = ["Not helpful", "Not helpful", "Not helpful"]  # None helpful
         
         total_zero = self.seed.compute_total_seed(intent_labels_zero, output_labels_zero, 
-                                                 helpfulness_labels_zero, user_replies)
+                                                 helpfulness_labels_zero, user_replies)["seed"]
         self.assertAlmostEqual(total_zero, 0.0, places=1)
         
         # Test with mixed scores
@@ -127,13 +125,13 @@ class TestSeed(unittest.TestCase):
         helpfulness_labels_mixed = ["Helpful", "Neutral", "Not helpful"]  # Mixed helpfulness
         
         total_mixed = self.seed.compute_total_seed(intent_labels_mixed, output_labels_mixed, 
-                                                  helpfulness_labels_mixed, user_replies)
+                                                  helpfulness_labels_mixed, user_replies)["seed"]
         # The exact value will depend on implementation details but should be in mid-range
         self.assertTrue(0.2 <= total_mixed <= 0.6)
         
         # Test with custom weights
         total_custom = self.custom_seed.compute_total_seed(intent_labels_mixed, output_labels_mixed, 
-                                                         helpfulness_labels_mixed, user_replies)
+                                                         helpfulness_labels_mixed, user_replies)["seed"]
         # Should be different from total_mixed due to custom weights
         self.assertNotEqual(total_custom, total_mixed)
 
@@ -154,7 +152,7 @@ class TestSeed(unittest.TestCase):
         intent_subscore = self.seed.compute_subscore_intent(intent_labels)
         output_subscore = self.seed.compute_subscore_output_elicitation(user_replies, elicitation_labels)
         helpfulness_subscore = self.seed.compute_subscore_helpfulness(helpfulness_labels)
-        total_seed = round(self.seed.compute_total_seed(intent_labels, elicitation_labels, helpfulness_labels, user_replies), 2)
+        total_seed = round(self.seed.compute_total_seed(intent_labels, elicitation_labels, helpfulness_labels, user_replies)["seed"], 2)
 
         # Manually compute expected values
         expected_intent = 3 / 5  # 3 D/I labels out of 5
