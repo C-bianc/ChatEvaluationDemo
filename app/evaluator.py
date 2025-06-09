@@ -130,7 +130,7 @@ class ConversationEvaluator:
 
                 seed_text = ""
                 for seed_result in message_evaluation.seed_scores:
-                    seed_text += f"{seed_result:<20}: {message_evaluation.seed_scores[seed_result]:.2f}\n"
+                    seed_text += f"{seed_result}: {message_evaluation.seed_scores[seed_result]:.2f}\n"
                 seed_results.append(seed_text)
             else:
                 evaluations.append("")
