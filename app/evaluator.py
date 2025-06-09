@@ -34,7 +34,7 @@ class ConversationEvaluator:
         labels = self.model.decode_outputs(model_output)
         return labels
 
-    def add_message_evaluation(self, turn, author, evaluation_results = None, seed_results = None):
+    def add_message_evaluation(self, turn, author, evaluation_results = None, seed_results = None, reason_for_bad = None):
         if author == "bot":
             self.intent_labels.append(evaluation_results[0].label)
             self.output_labels.append(evaluation_results[1].label)
@@ -47,6 +47,7 @@ class ConversationEvaluator:
                 role=author,
                 evaluation=evaluation_results,
                 seed_scores=seed_results,
+                reason_for_bad=reason_for_bad
             )
         )
         self.turn_number += 1
@@ -65,6 +66,15 @@ class ConversationEvaluator:
     def get_all_text_messages(self):
         conv_info_dict = [asdict(message_object) for message_object in self.evaluated_conversation]
         return format_conversation(conv_info_dict)
+
+    def update_last_message_seed_scores(self, seed_scores: dict):
+        """
+        set the seed_scores for the most recently added message evaluation
+        """
+        if self.evaluated_conversation:
+            self.evaluated_conversation[-1].seed_scores = seed_scores
+        else:
+            pass
 
     def add_bad_evaluation(self, evaluation: MessageEvaluation):
         self.bad_evaluations.append(evaluation)
@@ -89,10 +99,9 @@ class ConversationEvaluator:
         self.evaluated_conversation.pop()
         self.turn_number -= 2
 
-    @staticmethod
-    def get_evaluation_dataframe_with_bad_responses():
+    def get_evaluation_dataframe_with_bad_responses(self):
 
-        all_history = evaluator.get_conversation_evaluation_with_bad_responses()
+        all_history = self.get_conversation_evaluation_with_bad_responses()
 
         # Create lists to hold each column's data
         turn_numbers = []

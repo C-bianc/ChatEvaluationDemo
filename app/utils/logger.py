@@ -72,11 +72,9 @@ def save_conversation_with_evaluation(conversation, conv_id=None):
                     probability = evaluation.logits[evaluation.label]
                     row.extend([evaluation.label, probability])
 
-                for seed_result in seed_results:
+                for seed_result in seed_results.values():
                     row.extend([seed_result])
             csv_writer.writerow(row)
 
     action_log = "updated to existing file" if file_exists else "saved to"
     logging.info(f"Conversation {action_log} '{output_filename}'")
-
-    return f"Conversation saved to {output_filename}."

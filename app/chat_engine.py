@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import List
 
 import gradio as gr
+import pandas as pd
 
 from app.components.about_info_ui import add_info_about_app
 from app.components.chat_ui import create_chat_module
@@ -36,7 +37,7 @@ def get_prompt_for_refinement(labels, bot_response, history):
 
     logger.info(f"refining: {bot_response}")
     refinement_instructions = f"This generated bot response was labeled as {" and, ".join(labels)}.\n"
-    task = f"""\nTask: generate a new bot response that meets the previous requirements. 
+    task = f"""\nTask: generate a new bot response that meets the previous requirements but keeps the same meaning. 
     Output only the bot response and nothing else. Do not print explanations.\n
             Bot response: {bot_response}
 """
@@ -112,10 +113,21 @@ def get_new_evaluation(history, reason, new_bot_response, user_replies):
         turn=new_bot_response, author="bot", evaluation_results=evaluation_of_refined_response
     )
 
-    return evaluation_of_refined_response
+    seed_total = seed.compute_total_seed(
+        evaluator.intent_labels, evaluator.output_labels, evaluator.helpfulness_labels, user_replies
+    )
+
+    return evaluation_of_refined_response, seed_total
 
 
 def chat_and_evaluate(user_input, conversation_history, model_choice, context, requirements):
+    """
+    1) update history with recent user input
+    2) get bot response
+    3) evaluate bot response and compute seed
+    4) check if response needs to be refined + update last evaluation with new
+    5) if seed is high and conversation is long enough, end conversation
+    """
     # since history is only updated afterwards, we need to add manually for our query evaluation
     user_prompt = {"role": "user", "content": user_input}
     evaluator.add_message_evaluation(turn=user_input, author="user")
@@ -140,30 +152,34 @@ def chat_and_evaluate(user_input, conversation_history, model_choice, context, r
 
     ### EVALUATION
     evaluation: List[PredictionResult] = evaluator.evaluate_turn(convo=conversation_history, turn=bot_response)
+    evaluator.add_message_evaluation(turn=bot_response, author="bot", evaluation_results=evaluation)
+    logger.info(evaluator.get_conversation_evaluation())
 
     #### SEED
-    logger.info(evaluator.get_conversation_evaluation())
-    seed_total = seed.compute_total_seed(
+    seed_results = seed.compute_total_seed(
         evaluator.intent_labels, evaluator.output_labels, evaluator.helpfulness_labels, user_replies
-    )
+    ) # is a dict containing all the scores
+    seed_total = seed_results["seed"]
     logger.info(f"Seed total: {seed_total}")
 
-    evaluator.add_message_evaluation(turn=bot_response, author="bot", evaluation_results=evaluation, seed_results={"seed":seed_total, "seed_intent": seed.intent_subscore, "seed_output": seed.output_elicitation_subscore, "seed_helpful": seed.helpfulness_subscore})
+    evaluator.update_last_message_seed_scores(seed_results)
 
+    ### Check if need to refine
     actions_for_refinement = get_actions_for_refinement(
         evaluation, seed.intent_subscore, seed.output_elicitation_subscore, seed.helpfulness_subscore
     )
 
+    # IF REFINEMENT NEEDED
     if len(actions_for_refinement) > 0:
         bot_response = query_llm(
             model_choice, get_prompt_for_refinement(actions_for_refinement, bot_response, formatted_history_string)
         ).strip('"')
         ## update the evaluations with the newly generated bot response (need to do this because seed computes across all turns)
-        evaluation = get_new_evaluation(conversation_history, actions_for_refinement, bot_response)
-        seed_total = seed.compute_total_seed(
-            evaluator.intent_labels, evaluator.output_labels, evaluator.helpfulness_labels, user_replies
-        )
+        evaluation, seed_results = get_new_evaluation(conversation_history, actions_for_refinement, bot_response, user_replies)
 
+        evaluator.update_last_message_seed_scores(seed_results)
+
+    ### End conversation if seed is high and conversation is long enough
     if seed_total >= 0.70 and len(conversation_history) >= 20:
         bot_response = query_llm(model_choice, end_conversation_prompt(formatted_history_string)).strip('"')
         logger.info(f"Ending conversation: {bot_response}")
@@ -175,7 +191,7 @@ def chat_and_evaluate(user_input, conversation_history, model_choice, context, r
         bot_response,
         format_highlight_evaluation_results(evaluation),
         format_seed_results(
-            seed_total, seed.intent_subscore, seed.output_elicitation_subscore, seed.helpfulness_subscore
+            seed_results["seed"], seed_results["seed_intent"],seed_results["seed_output"], seed_results["seed_helpful"]
         ),
     )
 
