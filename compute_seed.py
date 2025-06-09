@@ -7,6 +7,7 @@ if after 4 turns, the bot has not been evaluated with I or D, trigger intent
 """
 import re
 from logging import getLogger
+
 logger = getLogger(__name__)
 
 ## OUTPUT ELICITATION
@@ -23,8 +24,9 @@ trigger helpfulness
 # SEED
 ## Has 3 SUB SCORES
 
+
 class Seed:
-    def __init__(self,weight_intent=1, weight_output_elicitation=1, weight_helpfulness=1, weight_eliciting=1):
+    def __init__(self, weight_intent=1, weight_output_elicitation=1, weight_helpfulness=1, weight_eliciting=1):
         # weights should be between 0 and 1
 
         self.l_min = 3
@@ -45,6 +47,9 @@ class Seed:
         """
         intent is the ratio of D and I labels among total turns
         """
+        if len(intent_labels) == 0:
+            return 0
+
         n_goal_intents = intent_labels.count("D") + intent_labels.count("I")
         return round(n_goal_intents / len(intent_labels), 2)
 
@@ -56,6 +61,8 @@ class Seed:
         return tokens
 
     def compute_subscore_output_elicitation(self, user_replies, elicitation_labels):
+        if len(elicitation_labels) == 0:
+            return 0
 
         """
         elicit score is the weighted ratio between eliciting turns and total turns added to learner contribution
@@ -75,35 +82,47 @@ class Seed:
         ARL = sum(user_replies_lengths) / len(user_replies_lengths)
 
         if ARL < self.l_min:
-            LC = 0 # penalize if user resp length too short
+            LC = 0  # penalize if user resp length too short
         else:
-            LC = min((ARL / self.l_max), 1) # avoid score distortion if user resp length already long enough
+            LC = min((ARL / self.l_max), 1)  # avoid score distortion if user resp length already long enough
 
         # compute eliciting ratio
         ER = elicitation_labels.count("Yes") / len(elicitation_labels)
 
         sub_score = (ER * self.weight_eliciting + LC) * 0.5 if LC > 0 else ER * self.weight_eliciting
-        logger.info(f"subscore output elicitation: {sub_score} (l_min = {self.l_min}, l_max = {self.l_max}, ARL = {ARL}, ER = {ER}, LC = {LC})")
+        logger.info(
+            f"subscore output elicitation: {sub_score} (l_min = {self.l_min}, l_max = {self.l_max}, ARL = {ARL}, ER = {ER}, LC = {LC})"
+        )
 
         return round(sub_score, 2)
 
     @staticmethod
     def compute_subscore_helpfulness(helpfulness_labels):
+        if len(helpfulness_labels) == 0:
+            return 0
+
         n_helpful = helpfulness_labels.count("Helpful")
         n_neutral = helpfulness_labels.count("Neutral")
         if n_neutral > 0:
-            n_neutral /= 2 # adapted because if only neutral, then seed is 0 (if trigger helpfulness when user in difficulty, then better)
+            n_neutral /= 2  # adapted because if only neutral, then seed is 0 (if trigger helpfulness when user in difficulty, then better)
 
         aggregated_labels = n_helpful + n_neutral
         return round(aggregated_labels / len(helpfulness_labels), 2)
 
-    def compute_total_seed(self, intent_labels, output_labels, helpfulness_labels, user_replies):
+
+    def compute_total_seed(self, intent_labels, output_labels, helpfulness_labels, user_replies) -> dict:
         self.intent_subscore = self.compute_subscore_intent(intent_labels)
         self.output_elicitation_subscore = self.compute_subscore_output_elicitation(user_replies, output_labels)
         self.helpfulness_subscore = self.compute_subscore_helpfulness(helpfulness_labels)
 
-        total_seed =   (self.weight_intent * self.intent_subscore) \
-                     + (self.weight_output_elicitation * self.output_elicitation_subscore) \
-                     + (self.weight_helpfulness * self.helpfulness_subscore)
-        return round(total_seed / 3, 2)
-
+        seed_total = (
+            (self.weight_intent * self.intent_subscore)
+            + (self.weight_output_elicitation * self.output_elicitation_subscore)
+            + (self.weight_helpfulness * self.helpfulness_subscore)
+        ) / 3
+        return {
+            "seed": seed_total,
+            "seed_intent": self.intent_subscore,
+            "seed_output": self.output_elicitation_subscore,
+            "seed_helpful": self.helpfulness_subscore,
+        }
