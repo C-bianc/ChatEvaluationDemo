@@ -109,6 +109,7 @@ def get_actions_for_refinement(
 def get_new_evaluation(history, new_bot_response, user_replies):
 
     evaluation_of_refined_response = evaluator.evaluate_turn(convo=history, turn=new_bot_response)
+    evaluator.add_message_evaluation(turn=new_bot_response, author="bot", evaluation_results=evaluation_of_refined_response)
 
     seed_total = seed.compute_total_seed(
         evaluator.intent_labels, evaluator.output_labels, evaluator.helpfulness_labels, user_replies
@@ -178,7 +179,6 @@ def chat_and_evaluate(user_input, conversation_history, model_choice, context, r
 
         ## update the evaluations with the newly generated bot response (need to do this because seed computes across all turns)
         evaluation, seed_results = get_new_evaluation(conversation_history, bot_response, user_replies)
-        evaluator.add_message_evaluation(turn=bot_response, author="bot", evaluation_results=evaluation)
         evaluator.update_last_message_seed_scores(seed_results)
 
     ### End conversation if seed is high and conversation is long enough
