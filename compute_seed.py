@@ -121,7 +121,7 @@ class Seed:
             + (self.weight_helpfulness * self.helpfulness_subscore)
         ) / 3
         return {
-            "seed": seed_total,
+            "seed": round(seed_total,2),
             "seed_intent": self.intent_subscore,
             "seed_output": self.output_elicitation_subscore,
             "seed_helpful": self.helpfulness_subscore,

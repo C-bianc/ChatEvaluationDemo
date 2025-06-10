@@ -56,14 +56,22 @@ class ConversationEvaluator:
         return self.evaluated_conversation
 
     def get_conversation_evaluation_with_bad_responses(self):
-        merged_evaluations = self.get_conversation_evaluation()
+        merged_evaluations = self.get_conversation_evaluation().copy()
         # we want the current history, with the bot responses that were refined at the right index
         for bad_evaluation in self.bad_evaluations:
-            merged_evaluations.insert(bad_evaluation.turn_number + 1, bad_evaluation)
+            merged_evaluations.insert(bad_evaluation.turn_number - 1, bad_evaluation)
 
         return merged_evaluations
 
     def get_all_text_messages(self):
+        """
+        returns a string with
+
+        User:
+        Bot:
+
+        structure
+        """
         conv_info_dict = [asdict(message_object) for message_object in self.evaluated_conversation]
         return format_conversation(conv_info_dict)
 
@@ -137,7 +145,6 @@ class ConversationEvaluator:
                 seed_results.append("")
                 reasons.append("")
 
-
         df = pd.DataFrame(
             {
                 "ID": turn_numbers,
@@ -148,5 +155,6 @@ class ConversationEvaluator:
                 "Reason for refinement": reasons,
             }
         )
+        print(df)
 
         return df

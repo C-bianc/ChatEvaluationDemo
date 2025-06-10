@@ -37,16 +37,17 @@ def get_prompt_for_refinement(labels, bot_response, history):
 
     logger.info(f"refining: {bot_response}")
     refinement_instructions = f"This generated bot response was labeled as {" and, ".join(labels)}.\n"
-    task = f"""\nTask: generate a new bot response that meets the previous requirements but keeps the same meaning. 
-    Output only the bot response and nothing else. Do not print explanations.\n
+    task = textwrap.dedent(f"""\nTask: generate a new bot response that meets the previous requirements but keeps the same meaning.
+    The new bot response can have a different structure so that it meets the previous requirements.
+    Output only the refined bot response and nothing else. Do not print explanations. Do not add special characters.\n
             Bot response: {bot_response}
-"""
+""")
     refinement_instructions += f"The previous content was: {history}\n"
 
     if ACTION_HELPFUL in labels:
         refinement_instructions += textwrap.dedent(
             f"""
-        If {ACTION_HELPFUL}:\n
+        If {ACTION_HELPFUL}, the bot response should be more helpful:\n
         A helpful response is considered as helpful if:
         - it conveys one idea at a time, 
         - uses simple and easy to understand language
@@ -58,7 +59,7 @@ def get_prompt_for_refinement(labels, bot_response, history):
         refinement_instructions += f"If {ACTION_OUTPUT}:\nThe bot response is not eliciting output. Keep the original meaning of the bot response in brackets and append to it a question or an imperative statement to the end of the response that would be a great continuity to the current content.\n"
 
     if ACTION_INTENT in labels:
-        refinement_instructions += f"If {ACTION_INTENT}:\nThe bot response lacks describing someone or introducing someone as intent.\n"
+        refinement_instructions += f"If {ACTION_INTENT}:\nThe bot response lacks describing someone or introducing someone as intent. Add a statement or question to expose to these intents.\n"
 
     refinement_instructions += task
     return refinement_instructions
@@ -70,14 +71,17 @@ def end_conversation_prompt(history):
     \nHistory: \n
         {history}\n
     
-    Give a response as that ends the conversation smoothly with the player as the role Bot. Output only the response and nothing else. Do not print explanations."""
+    Give a response as that ends the conversation with the player. You are the bot and are a NPC. 
+    Output only the response and nothing else. Do not print explanations."""
 
 
 def generate_bot_response(history, model_choice, context, requirements):
     structured_prompt = create_prompt_template(context, requirements, history)
 
     bot_response = query_llm(model_choice, structured_prompt).strip('"')  # we need user input for generating a response
-    bot_response = re.sub(r"\*(.*?)\*", "", bot_response)  # avoid inline actions
+    bot_response = re.sub(r'\[(.*?)\]', r'\1', bot_response)  # remove brackets
+    bot_response = re.sub(r'\*\*(.*?)\*\*', r'\1', bot_response)  # remove bold markdown
+
 
     return bot_response
 
@@ -102,17 +106,9 @@ def get_actions_for_refinement(
     return actions_for_refinement
 
 
-def get_new_evaluation(history, reason, new_bot_response, user_replies):
-    bad_response = evaluator.evaluated_conversation[-1]
-    bad_response.reason_for_bad = ", ".join(reason)
-    evaluator.add_bad_evaluation(bad_response)
-
-    evaluator.remove_last_message_evaluation()
+def get_new_evaluation(history, new_bot_response, user_replies):
 
     evaluation_of_refined_response = evaluator.evaluate_turn(convo=history, turn=new_bot_response)
-    evaluator.add_message_evaluation(
-        turn=new_bot_response, author="bot", evaluation_results=evaluation_of_refined_response
-    )
 
     seed_total = seed.compute_total_seed(
         evaluator.intent_labels, evaluator.output_labels, evaluator.helpfulness_labels, user_replies
@@ -162,7 +158,6 @@ def chat_and_evaluate(user_input, conversation_history, model_choice, context, r
     ) # is a dict containing all the scores
     seed_total = seed_results["seed"]
     logger.info(f"Seed total: {seed_total}")
-
     evaluator.update_last_message_seed_scores(seed_results)
 
     ### Check if need to refine
@@ -172,19 +167,24 @@ def chat_and_evaluate(user_input, conversation_history, model_choice, context, r
 
     # IF REFINEMENT NEEDED
     if len(actions_for_refinement) > 0:
+        bad_response = evaluator.evaluated_conversation[-1]
+        bad_response.reason_for_bad = ", ".join(actions_for_refinement)
+        evaluator.add_bad_evaluation(bad_response)
+        evaluator.remove_last_message_evaluation()
+
         bot_response = query_llm(
             model_choice, get_prompt_for_refinement(actions_for_refinement, bot_response, formatted_history_string)
         ).strip('"')
-        ## update the evaluations with the newly generated bot response (need to do this because seed computes across all turns)
-        evaluation, seed_results = get_new_evaluation(conversation_history, actions_for_refinement, bot_response, user_replies)
 
+        ## update the evaluations with the newly generated bot response (need to do this because seed computes across all turns)
+        evaluation, seed_results = get_new_evaluation(conversation_history, bot_response, user_replies)
+        evaluator.add_message_evaluation(turn=bot_response, author="bot", evaluation_results=evaluation)
         evaluator.update_last_message_seed_scores(seed_results)
 
     ### End conversation if seed is high and conversation is long enough
     if seed_total >= 0.70 and len(conversation_history) >= 20:
         bot_response = query_llm(model_choice, end_conversation_prompt(formatted_history_string)).strip('"')
         logger.info(f"Ending conversation: {bot_response}")
-        evaluator.reset_conversation_evaluation()
 
     conversation_history.pop()
 
@@ -199,7 +199,6 @@ def chat_and_evaluate(user_input, conversation_history, model_choice, context, r
 
 def trigger_notification(msg):
     return gr.Info(msg, duration=3)
-
 
 def build_chat_ui():
     with gr.Blocks(theme="ocean") as demo:
