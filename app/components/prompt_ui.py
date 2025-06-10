@@ -9,7 +9,7 @@ def create_prompt_parameters_module(default_context, default_requirements, promp
     context_input = gr.Textbox(label="Conversation Context", value=default_context, lines=20)
 
     # Requirements input
-    requirements_input = gr.Textbox(label="Constraints", value=default_requirements, lines=4)
+    requirements_input = gr.Textbox(label="Constraints", value=default_requirements, lines=6)
 
     # Add change event handlers AFTER all components are defined
     context_input.change(

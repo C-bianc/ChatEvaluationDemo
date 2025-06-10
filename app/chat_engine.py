@@ -267,13 +267,13 @@ def build_chat_ui():
             with gr.Row():
                 with gr.Column():
                     gr.Markdown("### Prompt Configuration")
+                    prompt_preview_tab = create_prompt_preview_module(default_context, default_requirements)
                     context_input, requirements_input = create_prompt_parameters_module(
-                        default_context, default_requirements, prompt_preview
+                        default_context, default_requirements, prompt_preview_tab
                     )
                 with gr.Column():
                     gr.Markdown("### Prompt Preview")
 
-                    prompt_preview_tab = create_prompt_preview_module(default_context, default_requirements)
                     prompt_preview_tab.label = "This prompt template is called at each turn for generating a response."
                     prompt_preview_tab.change(fn=lambda: trigger_notification("Prompt template updated."))
                     prompt_preview_tab.render()
@@ -285,8 +285,6 @@ def build_chat_ui():
         with gr.Tab("About"):
             gr.Markdown(add_info_about_app())
 
-            gr.Markdown("## Unified Model Architecture")
-            gr.HTML("""<embed src="app/assets/bert_unified.drawio.pdf" width="100%" height="600px" type="application/pdf">""")
-            gr.Markdown("Bianca Ciobanica, 2025")
+
 
     return demo
