@@ -46,6 +46,7 @@ def get_prompt_for_refinement(labels, bot_response, history):
     if ACTION_HELPFUL in labels:
         refinement_instructions += textwrap.dedent(
             f"""
+        If {ACTION_HELPFUL}:\n
         A helpful response is considered as helpful if:
         - it conveys one idea at a time, 
         - uses simple and easy to understand language
@@ -54,10 +55,10 @@ def get_prompt_for_refinement(labels, bot_response, history):
         )
 
     if ACTION_OUTPUT in labels:
-        refinement_instructions += f"The bot response is not eliciting output. Keep the bot response and append to it a question or an imperative statement to the end of the response that would be a great continuity to the current content.\n"
+        refinement_instructions += f"If {ACTION_OUTPUT}:\nThe bot response is not eliciting output. Keep the original meaning of the bot response in brackets and append to it a question or an imperative statement to the end of the response that would be a great continuity to the current content.\n"
 
     if ACTION_INTENT in labels:
-        refinement_instructions += f"The bot response lacks describing someone or introducing someone as intent."
+        refinement_instructions += f"If {ACTION_INTENT}:\nThe bot response lacks describing someone or introducing someone as intent.\n"
 
     refinement_instructions += task
     return refinement_instructions
