@@ -1,5 +1,6 @@
+import gradio as gr
 def add_info_about_app():
-    info_text = """
+    gr.Markdown("""
 ## About This Application
 
 This application is a follow-up work on my master thesis at the UCLouvain:  
@@ -36,7 +37,8 @@ Our research benchmarked several transformer-based models. The BERT model achiev
 BERT stood out particularly on the Interactional Support dimension, where it achieved the highest F1 score and was the only model to exceed 80% recall. While RoBERTa ranked second overall, it showed greater variation across tasks.
 
 The distilled models performed well on Output Elicitation, where all architectures scored highly across metrics with only minor differences. Performance on Communicative Intent and Interactional Support varied more, especially in recall.
+    """)
 
-    """
-    
-    return info_text
+    gr.Markdown("## Unified Model Architecture")
+    gr.Image(value="app/assets/bert_unified.drawio.png", width="90%")
+    gr.Markdown("Bianca Ciobanica, 2025")
