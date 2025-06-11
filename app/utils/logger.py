@@ -56,8 +56,7 @@ def save_conversation_with_evaluation(conversation, conv_id=None):
 
     with open(output_file, "w", newline="") as output_file:
         csv_writer = csv.writer(output_file)
-        if not file_exists:
-            csv_writer.writerow(headers)
+        csv_writer.writerow(headers)
 
         for message_evaluation in conversation:
             row = [conv_id, message_evaluation.turn_number, message_evaluation.role, message_evaluation.content]
