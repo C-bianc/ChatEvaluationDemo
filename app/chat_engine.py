@@ -259,7 +259,7 @@ def build_chat_ui():
             with gr.Row():
                 eval_history_box = gr.Dataframe(
                     wrap=True,    # ID # author # message # labels # seed # reason_for_bad
-                    column_widths=[20, 50, 250, 250, 150, 200],
+                    column_widths=[30, 50, 250, 250, 150, 200],
                     visible=True, value=pd.DataFrame(columns=["ID", "Author", "Message", "Labels", "Seed", "Reason for bad"]))
                 chatbot.change(fn=lambda : evaluator.get_evaluation_dataframe_with_bad_responses(), outputs=eval_history_box, trigger_mode="always_last")
 
