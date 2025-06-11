@@ -243,7 +243,7 @@ def build_chat_ui():
 
                     save_conversation_button.click(
                         fn=lambda: (
-                            save_conversation_with_evaluation(evaluator.get_conversation_evaluation(), conv_id),
+                            save_conversation_with_evaluation(evaluator.get_evaluation_dataframe_with_bad_responses(), conv_id),
                             trigger_notification(f"Saved in logs/conversation_{conv_id}.csv"),
                         ),
                     )
