@@ -2,7 +2,12 @@
 
 This application is a follow-up work on my master thesis at the UCLouvain:
 **"Automatic Evaluation of the Pedagogical Effectiveness of Open-Domain Chatbots in a Language Learning Game"**
-The repository can be found [here](https://github.com/C-bianc/ChatEvaluationDemo).
+The repository can be cloned using `git@github.com:C-bianc/ChatEvaluationDemo.git`
+![image](https://github.com/user-attachments/assets/84e5eaa1-4a2e-4f17-a4ba-f6d85458dd19)
+
+
+## Notes
+The model is not shared yet, so you will not be able to use the app unless the model is provided.
 
 ### Key Features:
 - Uses a **unified model** to evaluate user input and generate responses
