@@ -19,8 +19,6 @@ def get_logger(name=None):
     return logging.getLogger(name)
 
 
-
-
 def save_conversation_with_evaluation(conversation_df, conv_id=None):
     """Input: a list of MessageEvaluation objects.
     Output: a csv file with the conversation and evaluation results.
@@ -34,7 +32,8 @@ def save_conversation_with_evaluation(conversation_df, conv_id=None):
     output_file = os.path.join(project_root, "logs", output_filename)
     file_exists = os.path.exists(output_file)
 
-    conversation_df["conv_id"] = conv_id
+    conversation_df = conversation_df.assign(conv_id=conv_id)
+
     conversation_df.to_csv(output_file, sep=";", index=False, mode="a" if file_exists else "w")
 
     action_log = "updated to existing file" if file_exists else "saved to"

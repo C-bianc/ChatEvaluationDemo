@@ -155,6 +155,5 @@ class ConversationEvaluator:
                 "Reason for refinement": reasons,
             }
         )
-        print(df)
 
         return df
